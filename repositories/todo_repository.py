@@ -16,14 +16,15 @@ class TodoRepository:
 
     def get_list(
         self,
+        owner_id: int,
         is_done: Optional[bool] = None,
         q: Optional[str] = None,
         sort: Optional[str] = None,
         limit: int = 10,
         offset: int = 0,
     ) -> Tuple[List[TodoModel], int]:
-        stmt = select(TodoModel)
-        count_stmt = select(func.count()).select_from(TodoModel)
+        stmt = select(TodoModel).where(TodoModel.owner_id == owner_id)
+        count_stmt = select(func.count()).select_from(TodoModel).where(TodoModel.owner_id == owner_id)
 
         if is_done is not None:
             stmt = stmt.where(TodoModel.is_done == is_done)
@@ -48,12 +49,18 @@ class TodoRepository:
         rows = list(self._db.execute(stmt).scalars().all())
         return rows, total
 
-    def get_by_id(self, todo_id: int) -> Optional[TodoModel]:
-        stmt = select(TodoModel).where(TodoModel.id == todo_id)
+    def get_by_id(self, todo_id: int, owner_id: int) -> Optional[TodoModel]:
+        stmt = select(TodoModel).where(TodoModel.id == todo_id, TodoModel.owner_id == owner_id)
         return self._db.execute(stmt).scalars().one_or_none()
 
-    def create(self, title: str, description: Optional[str] = None, is_done: bool = False) -> TodoModel:
-        todo = TodoModel(title=title, description=description, is_done=is_done)
+    def create(
+        self,
+        owner_id: int,
+        title: str,
+        description: Optional[str] = None,
+        is_done: bool = False,
+    ) -> TodoModel:
+        todo = TodoModel(owner_id=owner_id, title=title, description=description, is_done=is_done)
         self._db.add(todo)
         self._db.commit()
         self._db.refresh(todo)
@@ -62,11 +69,12 @@ class TodoRepository:
     def update(
         self,
         todo_id: int,
+        owner_id: int,
         title: str,
         description: Optional[str] = None,
         is_done: bool = False,
     ) -> Optional[TodoModel]:
-        todo = self.get_by_id(todo_id)
+        todo = self.get_by_id(todo_id, owner_id)
         if todo is None:
             return None
         todo.title = title
@@ -76,8 +84,8 @@ class TodoRepository:
         self._db.refresh(todo)
         return todo
 
-    def partial_update(self, todo_id: int, **kwargs: object) -> Optional[TodoModel]:
-        todo = self.get_by_id(todo_id)
+    def partial_update(self, todo_id: int, owner_id: int, **kwargs: object) -> Optional[TodoModel]:
+        todo = self.get_by_id(todo_id, owner_id)
         if todo is None:
             return None
         for key, value in kwargs.items():
@@ -87,11 +95,11 @@ class TodoRepository:
         self._db.refresh(todo)
         return todo
 
-    def set_complete(self, todo_id: int, is_done: bool = True) -> Optional[TodoModel]:
-        return self.partial_update(todo_id, is_done=is_done)
+    def set_complete(self, todo_id: int, owner_id: int, is_done: bool = True) -> Optional[TodoModel]:
+        return self.partial_update(todo_id, owner_id, is_done=is_done)
 
-    def delete(self, todo_id: int) -> bool:
-        todo = self.get_by_id(todo_id)
+    def delete(self, todo_id: int, owner_id: int) -> bool:
+        todo = self.get_by_id(todo_id, owner_id)
         if todo is None:
             return False
         self._db.delete(todo)

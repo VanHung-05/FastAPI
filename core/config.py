@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
 
+    # JWT
+    SECRET_KEY: str = "change-me-in-production-use-env"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24h
+
     # PostgreSQL (Docker port 5433)
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5433
