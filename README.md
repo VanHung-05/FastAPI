@@ -186,33 +186,88 @@ Sau khi kết nối, mở **Databases** → **tododb** → **Schemas** → **pub
 
 ---
 
+## Cấp 5 — Authentication + User riêng
+
+Mục tiêu: mỗi user có to-do riêng.
+
+### Yêu cầu
+
+- **Bảng users:** `id`, `email`, `hashed_password`, `is_active`, `created_at`
+- **JWT login:**
+  - `POST /api/v1/auth/register` — đăng ký
+  - `POST /api/v1/auth/login` — đăng nhập (trả JWT)
+  - `GET /api/v1/auth/me` — thông tin user đăng nhập (cần Bearer token)
+- **Todo gắn owner_id:** mọi todo thuộc một user; API todo yêu cầu đăng nhập.
+
+### Bảng users (PostgreSQL)
+
+| Cột | Kiểu | Ghi chú |
+|-----|------|--------|
+| id | integer | PK, auto |
+| email | varchar(255) | unique, not null |
+| hashed_password | varchar(255) | not null (bcrypt) |
+| is_active | boolean | default true |
+| created_at | timestamptz | server_default |
+
+### Bảng todos (cập nhật)
+
+Thêm cột **owner_id** (FK → users.id). Chỉ user sở hữu mới xem/sửa/xóa được todo đó.
+
+### Tiêu chí đạt
+
+- **User A không xem/xóa todo của User B** — filter theo `owner_id`, mọi endpoint todo dùng `get_current_user`.
+- **Password hash bằng passlib/bcrypt** — không lưu plain password.
+
+### Luồng sử dụng
+
+1. **Đăng ký:** `POST /api/v1/auth/register` với `{"email": "user@example.com", "password": "matkhau123"}`.
+2. **Đăng nhập:** `POST /api/v1/auth/login` với cùng email/password → nhận `access_token`.
+3. **Gọi API todo:** thêm header `Authorization: Bearer <access_token>`.
+4. **Trong Swagger:** bấm **Authorize**, nhập username = email và password (hoặc dùng `/auth/token` với form) → sau đó gọi các endpoint todo.
+
+### Swagger UI — Auth (Cấp 5)
+
+**Đăng ký user mới** — body: `email`, `password` (tối thiểu 6 ký tự):
+
+![POST /api/v1/auth/register](docs/cap5-register.png)
+
+**Đăng nhập** — sai email/mật khẩu trả 401 và message "Email hoặc mật khẩu không đúng"; đúng thì trả 200 với `access_token`:
+
+![POST /api/v1/auth/login](docs/cap5-login.png)
+
+---
+
 ## Cấu trúc project
 
 ```
 FastAPI/
-├── core/             # Config, database, deps
-│   ├── config.py
-│   ├── database.py   # Engine, SessionLocal, get_db
-│   └── deps.py
-├── models/          # SQLAlchemy models
+├── core/             # Config, database, security, deps
+│   ├── config.py     # + JWT (SECRET_KEY, ALGORITHM)
+│   ├── database.py
+│   ├── deps.py       # get_current_user, get_todo_service, ...
+│   └── security.py   # hash_password, verify_password, JWT
+├── models/
 │   ├── base.py
-│   └── todo.py
-├── schemas/          # Pydantic models
-│   └── todo.py
-├── repositories/     # Truy cập DB (PostgreSQL)
-│   └── todo_repository.py
+│   ├── todo.py       # + owner_id
+│   └── user.py
+├── schemas/
+│   ├── todo.py
+│   └── user.py       # UserCreate, UserResponse, Token, LoginRequest
+├── repositories/
+│   ├── todo_repository.py   # filter theo owner_id
+│   └── user_repository.py
 ├── services/
+│   ├── auth_service.py
 │   └── todo_service.py
 ├── routers/
 │   ├── root.py
-│   └── todo.py
-├── alembic/          # Migration
-│   ├── env.py
-│   └── versions/
+│   ├── auth.py       # register, login, token, me
+│   └── todo.py       # Depends(get_current_user)
+├── alembic/versions/ # + 002 users và owner_id
 ├── main.py
-├── docker-compose.yml   # PostgreSQL (5433), pgAdmin (5050)
-├── requirements.txt
-├── .env.example
+├── docker-compose.yml
+├── requirements.txt  # + python-jose, passlib[bcrypt], email-validator
+├── .env.example      # + SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES
 ├── docs/
 └── README.md
 ```
@@ -246,6 +301,7 @@ FastAPI/
 5. **Kiểm tra:**
    - Trang chủ: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
    - Health: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-   - API Todo: [http://127.0.0.1:8000/api/v1/todos](http://127.0.0.1:8000/api/v1/todos)
+   - Auth (Cấp 5): [http://127.0.0.1:8000/api/v1/auth/register](http://127.0.0.1:8000/api/v1/auth/register), [login](http://127.0.0.1:8000/api/v1/auth/login), [me](http://127.0.0.1:8000/api/v1/auth/me)
+   - API Todo (cần Bearer token): [http://127.0.0.1:8000/api/v1/todos](http://127.0.0.1:8000/api/v1/todos)
    - Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
    - pgAdmin (Docker, nếu dùng): [http://127.0.0.1:5050](http://127.0.0.1:5050) — đăng nhập `admin@admin.com` / `admin`
