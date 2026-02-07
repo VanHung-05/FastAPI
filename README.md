@@ -281,37 +281,85 @@ Thêm cột:
 
 ---
 
+## Cấp 7 — Testing + tài liệu
+
+Mục tiêu: hoàn chỉnh quy trình (test, tài liệu).
+
+### Yêu cầu
+
+- Viết test bằng **pytest** + **TestClient** (FastAPI).
+- Test các case: **tạo thành công**, **validation fail**, **404**, **auth fail**.
+
+### Thư mục tests (nộp bài)
+
+Toàn bộ test nằm trong thư mục **`tests/`** ở root project:
+
+```
+tests/
+├── __init__.py
+├── conftest.py      # fixtures: client, auth_headers
+├── test_auth.py     # register, login, auth fail
+└── test_todos.py    # create success, validation fail, 404, auth fail
+```
+
+### Các case đã test
+
+| Case | File | Mô tả |
+|------|------|--------|
+| Tạo thành công | test_todos | POST /todos với token → 200, có id, title |
+| Validation fail | test_auth, test_todos | Register password ngắn, Todo title &lt; 3 ký tự → 422 |
+| 404 | test_todos | GET /todos/999999 → 404 |
+| Auth fail | test_auth, test_todos | GET /me hoặc GET/POST /todos không token → 401 |
+
+### Chạy test
+
+**Lưu ý:** PostgreSQL phải đang chạy và đã `alembic upgrade head`.
+
+```bash
+pip install -r requirements.txt
+pytest
+# hoặc xem chi tiết:
+pytest -v
+```
+
+---
+
 ## Cấu trúc project
 
 ```
 FastAPI/
-├── core/             # Config, database, security, deps
-│   ├── config.py     # + JWT (SECRET_KEY, ALGORITHM)
+├── core/
+│   ├── config.py
 │   ├── database.py
-│   ├── deps.py       # get_current_user, get_todo_service, ...
-│   └── security.py   # hash_password, verify_password, JWT
+│   ├── deps.py
+│   └── security.py
 ├── models/
 │   ├── base.py
-│   ├── todo.py       # + owner_id, due_date, tags (Cấp 6)
+│   ├── todo.py
 │   └── user.py
 ├── schemas/
 │   ├── todo.py
-│   └── user.py       # UserCreate, UserResponse, Token, LoginRequest
+│   └── user.py
 ├── repositories/
-│   ├── todo_repository.py   # filter theo owner_id
+│   ├── todo_repository.py
 │   └── user_repository.py
 ├── services/
 │   ├── auth_service.py
 │   └── todo_service.py
 ├── routers/
 │   ├── root.py
-│   ├── auth.py       # register, login, token, me
-│   └── todo.py       # Depends(get_current_user)
-├── alembic/versions/ # 001 todos, 002 users+owner_id, 003 due_date+tags
+│   ├── auth.py
+│   └── todo.py
+├── tests/           # Cấp 7 — pytest
+│   ├── conftest.py
+│   ├── test_auth.py
+│   └── test_todos.py
+├── alembic/versions/
 ├── main.py
+├── pytest.ini
 ├── docker-compose.yml
-├── requirements.txt  # PyJWT, bcrypt, email-validator, ...
-├── .env.example      # + SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES
+├── requirements.txt  # + pytest
+├── .env.example
 ├── docs/
 └── README.md
 ```
@@ -342,7 +390,9 @@ FastAPI/
    uvicorn main:app --reload --host 127.0.0.1 --port 8000
    ```
 
-5. **Kiểm tra:**
+5. **Chạy test (Cấp 7):** `pytest` hoặc `pytest -v` (cần Postgres + migration trước).
+
+6. **Kiểm tra:**
    - Trang chủ: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
    - Health: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
    - Auth (Cấp 5): [http://127.0.0.1:8000/api/v1/auth/register](http://127.0.0.1:8000/api/v1/auth/register), [login](http://127.0.0.1:8000/api/v1/auth/login), [me](http://127.0.0.1:8000/api/v1/auth/me)
