@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import List, Optional, Tuple
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from models.todo import TodoModel
+
+_NOT_DELETED = TodoModel.deleted_at.is_(None)
 
 
 class TodoRepository:
@@ -24,8 +26,10 @@ class TodoRepository:
         limit: int = 10,
         offset: int = 0,
     ) -> Tuple[List[TodoModel], int]:
-        stmt = select(TodoModel).where(TodoModel.owner_id == owner_id)
-        count_stmt = select(func.count()).select_from(TodoModel).where(TodoModel.owner_id == owner_id)
+        stmt = select(TodoModel).where(TodoModel.owner_id == owner_id).where(_NOT_DELETED)
+        count_stmt = (
+            select(func.count()).select_from(TodoModel).where(TodoModel.owner_id == owner_id).where(_NOT_DELETED)
+        )
 
         if is_done is not None:
             stmt = stmt.where(TodoModel.is_done == is_done)
@@ -60,6 +64,7 @@ class TodoRepository:
         stmt = (
             select(TodoModel)
             .where(TodoModel.owner_id == owner_id)
+            .where(_NOT_DELETED)
             .where(TodoModel.due_date.isnot(None))
             .where(TodoModel.due_date < today)
         )
@@ -67,6 +72,7 @@ class TodoRepository:
             select(func.count())
             .select_from(TodoModel)
             .where(TodoModel.owner_id == owner_id)
+            .where(_NOT_DELETED)
             .where(TodoModel.due_date.isnot(None))
             .where(TodoModel.due_date < today)
         )
@@ -85,12 +91,14 @@ class TodoRepository:
         stmt = (
             select(TodoModel)
             .where(TodoModel.owner_id == owner_id)
+            .where(_NOT_DELETED)
             .where(TodoModel.due_date == today)
         )
         count_stmt = (
             select(func.count())
             .select_from(TodoModel)
             .where(TodoModel.owner_id == owner_id)
+            .where(_NOT_DELETED)
             .where(TodoModel.due_date == today)
         )
         total = self._db.execute(count_stmt).scalar() or 0
@@ -99,7 +107,9 @@ class TodoRepository:
         return rows, total
 
     def get_by_id(self, todo_id: int, owner_id: int) -> Optional[TodoModel]:
-        stmt = select(TodoModel).where(TodoModel.id == todo_id, TodoModel.owner_id == owner_id)
+        stmt = select(TodoModel).where(
+            TodoModel.id == todo_id, TodoModel.owner_id == owner_id
+        ).where(_NOT_DELETED)
         return self._db.execute(stmt).scalars().one_or_none()
 
     def create(
@@ -164,6 +174,7 @@ class TodoRepository:
         todo = self.get_by_id(todo_id, owner_id)
         if todo is None:
             return False
-        self._db.delete(todo)
+        todo.deleted_at = datetime.now(timezone.utc)
         self._db.commit()
+        self._db.refresh(todo)
         return True

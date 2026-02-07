@@ -290,7 +290,7 @@ Mục tiêu: hoàn chỉnh quy trình (test, tài liệu).
 - Viết test bằng **pytest** + **TestClient** (FastAPI).
 - Test các case: **tạo thành công**, **validation fail**, **404**, **auth fail**.
 
-### Thư mục tests (nộp bài)
+### Thư mục tests
 
 Toàn bộ test nằm trong thư mục **`tests/`** ở root project:
 
@@ -324,6 +324,20 @@ pytest -v
 
 ---
 
+## Cấp 8 — Soft delete (deleted_at)
+
+Todo không bị xóa vật lý; khi gọi **DELETE /api/v1/todos/{id}** hệ thống chỉ ghi thời điểm xóa vào cột **`deleted_at`**.
+
+- **Migration:** `004_add_deleted_at_to_todos.py` — thêm cột `deleted_at` (TIMESTAMP WITH TIME ZONE, nullable) vào bảng `todos`.
+- **Model:** `TodoModel.deleted_at` (nullable).
+- **Logic:**
+  - Mọi truy vấn đọc (danh sách, chi tiết, overdue, today) chỉ lấy bản ghi có `deleted_at IS NULL`.
+  - Xóa todo: set `deleted_at = now()` rồi commit, không gọi `DELETE` trên DB.
+
+Sau khi cập nhật code, chạy: `alembic upgrade head`.
+
+---
+
 ## Cấu trúc project
 
 ```
@@ -335,7 +349,7 @@ FastAPI/
 │   └── security.py
 ├── models/
 │   ├── base.py
-│   ├── todo.py
+│   ├── todo.py       # + deleted_at (Cấp 8 soft delete)
 │   └── user.py
 ├── schemas/
 │   ├── todo.py
@@ -354,7 +368,7 @@ FastAPI/
 │   ├── conftest.py
 │   ├── test_auth.py
 │   └── test_todos.py
-├── alembic/versions/
+├── alembic/versions/  # 001–003 + 004 deleted_at
 ├── main.py
 ├── pytest.ini
 ├── docker-compose.yml
