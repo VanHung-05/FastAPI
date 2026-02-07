@@ -1,20 +1,28 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
+import jwt
 
 from core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Bcrypt chỉ chấp nhận tối đa 72 byte
+BCRYPT_MAX_PASSWORD_BYTES = 72
+
+
+def _truncate_password(plain: str) -> bytes:
+    """Cắt password xuống tối đa 72 byte (giới hạn của bcrypt)."""
+    return plain.encode("utf-8")[:BCRYPT_MAX_PASSWORD_BYTES]
 
 
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    pw = _truncate_password(plain)
+    return bcrypt.hashpw(pw, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    pw = _truncate_password(plain)
+    return bcrypt.checkpw(pw, hashed.encode("utf-8"))
 
 
 def create_access_token(subject: Any, expires_delta: Optional[timedelta] = None) -> str:
@@ -22,7 +30,9 @@ def create_access_token(subject: Any, expires_delta: Optional[timedelta] = None)
         expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode = {"exp": expire, "sub": str(subject)}
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(
+        to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+    )
 
 
 def decode_access_token(token: str) -> Optional[str]:
@@ -30,5 +40,5 @@ def decode_access_token(token: str) -> Optional[str]:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         sub = payload.get("sub")
         return str(sub) if sub is not None else None
-    except JWTError:
+    except jwt.PyJWTError:
         return None

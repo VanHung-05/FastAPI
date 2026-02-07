@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import List, Optional, Tuple
 
 from sqlalchemy import func, select
@@ -49,6 +50,54 @@ class TodoRepository:
         rows = list(self._db.execute(stmt).scalars().all())
         return rows, total
 
+    def get_overdue(
+        self,
+        owner_id: int,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> Tuple[List[TodoModel], int]:
+        today = date.today()
+        stmt = (
+            select(TodoModel)
+            .where(TodoModel.owner_id == owner_id)
+            .where(TodoModel.due_date.isnot(None))
+            .where(TodoModel.due_date < today)
+        )
+        count_stmt = (
+            select(func.count())
+            .select_from(TodoModel)
+            .where(TodoModel.owner_id == owner_id)
+            .where(TodoModel.due_date.isnot(None))
+            .where(TodoModel.due_date < today)
+        )
+        total = self._db.execute(count_stmt).scalar() or 0
+        stmt = stmt.order_by(TodoModel.due_date.asc()).limit(limit).offset(offset)
+        rows = list(self._db.execute(stmt).scalars().all())
+        return rows, total
+
+    def get_today(
+        self,
+        owner_id: int,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> Tuple[List[TodoModel], int]:
+        today = date.today()
+        stmt = (
+            select(TodoModel)
+            .where(TodoModel.owner_id == owner_id)
+            .where(TodoModel.due_date == today)
+        )
+        count_stmt = (
+            select(func.count())
+            .select_from(TodoModel)
+            .where(TodoModel.owner_id == owner_id)
+            .where(TodoModel.due_date == today)
+        )
+        total = self._db.execute(count_stmt).scalar() or 0
+        stmt = stmt.order_by(TodoModel.due_date.asc()).limit(limit).offset(offset)
+        rows = list(self._db.execute(stmt).scalars().all())
+        return rows, total
+
     def get_by_id(self, todo_id: int, owner_id: int) -> Optional[TodoModel]:
         stmt = select(TodoModel).where(TodoModel.id == todo_id, TodoModel.owner_id == owner_id)
         return self._db.execute(stmt).scalars().one_or_none()
@@ -59,8 +108,17 @@ class TodoRepository:
         title: str,
         description: Optional[str] = None,
         is_done: bool = False,
+        due_date: Optional[date] = None,
+        tags: Optional[List[str]] = None,
     ) -> TodoModel:
-        todo = TodoModel(owner_id=owner_id, title=title, description=description, is_done=is_done)
+        todo = TodoModel(
+            owner_id=owner_id,
+            title=title,
+            description=description,
+            is_done=is_done,
+            due_date=due_date,
+            tags=tags or [],
+        )
         self._db.add(todo)
         self._db.commit()
         self._db.refresh(todo)
@@ -73,6 +131,8 @@ class TodoRepository:
         title: str,
         description: Optional[str] = None,
         is_done: bool = False,
+        due_date: Optional[date] = None,
+        tags: Optional[List[str]] = None,
     ) -> Optional[TodoModel]:
         todo = self.get_by_id(todo_id, owner_id)
         if todo is None:
@@ -80,6 +140,8 @@ class TodoRepository:
         todo.title = title
         todo.description = description
         todo.is_done = is_done
+        todo.due_date = due_date
+        todo.tags = tags if tags is not None else []
         self._db.commit()
         self._db.refresh(todo)
         return todo

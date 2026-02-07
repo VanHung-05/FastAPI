@@ -41,6 +41,28 @@ def list_todos(
     )
 
 
+@router.get("/overdue", response_model=TodoListResponse)
+def list_overdue(
+    current_user: UserModel = Depends(get_current_user),
+    service: TodoService = Depends(get_todo_service),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Danh sách todo quá hạn (due_date < hôm nay)."""
+    return service.list_overdue(owner_id=current_user.id, limit=limit, offset=offset)
+
+
+@router.get("/today", response_model=TodoListResponse)
+def list_today(
+    current_user: UserModel = Depends(get_current_user),
+    service: TodoService = Depends(get_todo_service),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Việc cần làm hôm nay (due_date = hôm nay)."""
+    return service.list_today(owner_id=current_user.id, limit=limit, offset=offset)
+
+
 @router.get("/{todo_id}", response_model=ToDo)
 def get_todo(
     todo_id: int,

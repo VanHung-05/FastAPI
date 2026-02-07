@@ -38,6 +38,8 @@ class TodoService:
             title=body.title,
             description=body.description,
             is_done=body.is_done,
+            due_date=body.due_date,
+            tags=body.tags,
         )
         return _orm_to_schema(row)
 
@@ -52,8 +54,30 @@ class TodoService:
             title=body.title,
             description=body.description,
             is_done=body.is_done,
+            due_date=body.due_date,
+            tags=body.tags,
         )
         return _orm_to_schema(row) if row else None
+
+    def list_overdue(
+        self,
+        owner_id: int,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> TodoListResponse:
+        rows, total = self._repo.get_overdue(owner_id=owner_id, limit=limit, offset=offset)
+        items = [_orm_to_schema(r) for r in rows]
+        return TodoListResponse(items=items, total=total, limit=limit, offset=offset)
+
+    def list_today(
+        self,
+        owner_id: int,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> TodoListResponse:
+        rows, total = self._repo.get_today(owner_id=owner_id, limit=limit, offset=offset)
+        items = [_orm_to_schema(r) for r in rows]
+        return TodoListResponse(items=items, total=total, limit=limit, offset=offset)
 
     def partial_update(self, todo_id: int, owner_id: int, body: ToDoPatch) -> Optional[ToDo]:
         data = body.model_dump(exclude_unset=True)

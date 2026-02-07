@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.exc import IntegrityError
 
 from schemas.user import UserCreate, UserResponse, Token, LoginRequest
 from services.auth_service import AuthService
 from repositories.user_repository import UserRepository
 from core.deps import get_current_user, get_user_repository
 from models.user import UserModel
+from core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -17,13 +19,21 @@ def get_auth_service(repo: UserRepository = Depends(get_user_repository)) -> Aut
 @router.post("/register", response_model=UserResponse)
 def register(body: UserCreate, service: AuthService = Depends(get_auth_service)):
     """Đăng ký user mới."""
-    user = service.register(body)
-    if user is None:
+    try:
+        user = service.register(body)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email đã được sử dụng",
+            )
+        return user
+    except IntegrityError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email đã được sử dụng",
         )
-    return user
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/login", response_model=Token)

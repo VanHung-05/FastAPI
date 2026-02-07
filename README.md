@@ -237,6 +237,50 @@ Thêm cột **owner_id** (FK → users.id). Chỉ user sở hữu mới xem/sử
 
 ---
 
+## Cấp 6 — Nâng cao (tag, deadline, nhắc việc)
+
+Mục tiêu: thêm tính năng giống app thật.
+
+### Yêu cầu tính năng
+
+- **due_date** (deadline) — ngày hạn, kiểu date, tùy chọn
+- **tags** — nhiều tag (mảng chuỗi), tùy chọn
+- **GET /api/v1/todos/overdue** — danh sách todo quá hạn (`due_date` &lt; hôm nay)
+- **GET /api/v1/todos/today** — việc cần làm hôm nay (`due_date` = hôm nay)
+
+### Bảng todos (cập nhật Cấp 6)
+
+Thêm cột:
+
+| Cột | Kiểu | Ghi chú |
+|-----|------|--------|
+| due_date | date | nullable |
+| tags | text[] | nullable (PostgreSQL array) |
+
+### Endpoints mới (cần Bearer token)
+
+| Method | Path | Mô tả |
+|--------|------|--------|
+| GET | `/api/v1/todos/overdue` | Todo quá hạn (limit, offset) |
+| GET | `/api/v1/todos/today` | Todo có deadline hôm nay (limit, offset) |
+
+### Ví dụ response
+
+**GET /api/v1/todos/overdue** và **GET /api/v1/todos/today** trả về cùng cấu trúc:
+
+
+### Swagger UI — Overdue & Today (Cấp 6)
+
+**Todo quá hạn** — `GET /api/v1/todos/overdue?limit=10&offset=0` (cần Authorization: Bearer token):
+
+![GET /api/v1/todos/overdue](docs/cap6-overdue.png)
+
+**Việc hôm nay** — `GET /api/v1/todos/today?limit=10&offset=0`:
+
+![GET /api/v1/todos/today](docs/cap6-today.png)
+
+---
+
 ## Cấu trúc project
 
 ```
@@ -248,7 +292,7 @@ FastAPI/
 │   └── security.py   # hash_password, verify_password, JWT
 ├── models/
 │   ├── base.py
-│   ├── todo.py       # + owner_id
+│   ├── todo.py       # + owner_id, due_date, tags (Cấp 6)
 │   └── user.py
 ├── schemas/
 │   ├── todo.py
@@ -263,10 +307,10 @@ FastAPI/
 │   ├── root.py
 │   ├── auth.py       # register, login, token, me
 │   └── todo.py       # Depends(get_current_user)
-├── alembic/versions/ # + 002 users và owner_id
+├── alembic/versions/ # 001 todos, 002 users+owner_id, 003 due_date+tags
 ├── main.py
 ├── docker-compose.yml
-├── requirements.txt  # + python-jose, passlib[bcrypt], email-validator
+├── requirements.txt  # PyJWT, bcrypt, email-validator, ...
 ├── .env.example      # + SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES
 ├── docs/
 └── README.md
@@ -283,7 +327,7 @@ FastAPI/
 2. **Chạy PostgreSQL (Docker, cổng 5433):**
 
    ```bash
-   docker-compose up -d postgres
+   docker-compose up -d
    ```
 
 3. **Chạy migration:**
@@ -302,6 +346,6 @@ FastAPI/
    - Trang chủ: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
    - Health: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
    - Auth (Cấp 5): [http://127.0.0.1:8000/api/v1/auth/register](http://127.0.0.1:8000/api/v1/auth/register), [login](http://127.0.0.1:8000/api/v1/auth/login), [me](http://127.0.0.1:8000/api/v1/auth/me)
-   - API Todo (cần Bearer token): [http://127.0.0.1:8000/api/v1/todos](http://127.0.0.1:8000/api/v1/todos)
+   - API Todo (cần Bearer token): [http://127.0.0.1:8000/api/v1/todos](http://127.0.0.1:8000/api/v1/todos), [overdue](http://127.0.0.1:8000/api/v1/todos/overdue), [today](http://127.0.0.1:8000/api/v1/todos/today)
    - Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
    - pgAdmin (Docker, nếu dùng): [http://127.0.0.1:5050](http://127.0.0.1:5050) — đăng nhập `admin@admin.com` / `admin`
