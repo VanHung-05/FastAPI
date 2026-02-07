@@ -1,0 +1,63 @@
+from __future__ import annotations
+
+from typing import List, Optional
+
+from schemas.todo import ToDo, ToDoCreate, ToDoUpdate, ToDoPatch, TodoListResponse
+from repositories.todo_repository import TodoRepository
+from models.todo import TodoModel
+
+
+def _orm_to_schema(row: TodoModel) -> ToDo:
+    return ToDo.model_validate(row)
+
+
+class TodoService:
+    """Nghiệp vụ todo (filter, sort, pagination từ DB)."""
+
+    def __init__(self, repository: TodoRepository) -> None:
+        self._repo = repository
+
+    def list_todos(
+        self,
+        is_done: Optional[bool] = None,
+        q: Optional[str] = None,
+        sort: Optional[str] = None,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> TodoListResponse:
+        rows, total = self._repo.get_list(is_done=is_done, q=q, sort=sort, limit=limit, offset=offset)
+        items = [_orm_to_schema(r) for r in rows]
+        return TodoListResponse(items=items, total=total, limit=limit, offset=offset)
+
+    def create(self, body: ToDoCreate) -> ToDo:
+        row = self._repo.create(
+            title=body.title,
+            description=body.description,
+            is_done=body.is_done,
+        )
+        return _orm_to_schema(row)
+
+    def get_by_id(self, todo_id: int) -> Optional[ToDo]:
+        row = self._repo.get_by_id(todo_id)
+        return _orm_to_schema(row) if row else None
+
+    def update(self, todo_id: int, body: ToDoUpdate) -> Optional[ToDo]:
+        row = self._repo.update(
+            todo_id,
+            title=body.title,
+            description=body.description,
+            is_done=body.is_done,
+        )
+        return _orm_to_schema(row) if row else None
+
+    def partial_update(self, todo_id: int, body: ToDoPatch) -> Optional[ToDo]:
+        data = body.model_dump(exclude_unset=True)
+        row = self._repo.partial_update(todo_id, **data)
+        return _orm_to_schema(row) if row else None
+
+    def complete(self, todo_id: int) -> Optional[ToDo]:
+        row = self._repo.set_complete(todo_id, is_done=True)
+        return _orm_to_schema(row) if row else None
+
+    def delete(self, todo_id: int) -> bool:
+        return self._repo.delete(todo_id)

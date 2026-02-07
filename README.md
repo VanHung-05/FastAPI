@@ -52,14 +52,168 @@ Mở [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) để xem và gọ
 
 ---
 
+## Cấp 2 — Validation “xịn” + filter / sort / pagination
+
+Mục tiêu: API giống thực tế hơn.
+
+### Yêu cầu
+
+- **Validation:** `title` không được rỗng, độ dài 3–100 ký tự.
+- **GET /todos** hỗ trợ:
+  - **filter:** `is_done=true` hoặc `is_done=false`
+  - **search:** `q=keyword` (tìm theo title)
+  - **sort:** `sort=created_at` (tăng dần) hoặc `sort=-created_at` (giảm dần)
+  - **pagination:** `limit`, `offset`
+
+### Model ToDo (cập nhật)
+
+- `id`: int
+- `title`: str
+- `is_done`: bool = False
+- `created_at`: datetime (tự gán khi tạo)
+
+### Response GET /todos
+
+Cấu trúc trả về:
+
+```json
+{
+  "items": [...],
+  "total": 123,
+  "limit": 10,
+  "offset": 0
+}
+```
+
+### Ví dụ gọi GET /todos
+
+- `/todos?is_done=false` — chỉ todo chưa xong
+- `/todos?q=FastAPI` — tìm title chứa "FastAPI"
+- `/todos?sort=-created_at&limit=5&offset=0` — mới nhất, 5 bản ghi đầu
+
+### Tiêu chí đạt
+
+- Response có cấu trúc `{ "items", "total", "limit", "offset" }`.
+
+---
+
+## Cấp 3 — Tách tầng (router / service / repository) + cấu hình chuẩn
+
+Mục tiêu: viết như dự án thật.
+
+### Yêu cầu
+
+- **Tách thư mục:** `routers/`, `schemas/`, `services/`, `repositories/`, `core/`
+- Dùng **APIRouter**, prefix **`/api/v1`**
+- **Config** bằng pydantic-settings (env): `APP_NAME`, `DEBUG`, `API_V1_PREFIX`, …
+
+### Cấu trúc thư mục (Cấp 3)
+
+| Thư mục | Nội dung |
+|--------|----------|
+| `core/` | `config.py` (pydantic-settings), `deps.py` (dependency injection) |
+| `schemas/` | Model Pydantic: ToDo, ToDoCreate, ToDoUpdate, TodoListResponse |
+| `repositories/` | Truy cập dữ liệu (in-memory), không chứa logic filter/sort |
+| `services/` | Nghiệp vụ: filter, sort, pagination, gọi repository |
+| `routers/` | Định nghĩa endpoint, gọi service (không viết logic DB) |
+
+### Endpoints sau khi tách
+
+- `GET /`, `GET /health` — vẫn ở root
+- `GET/POST /api/v1/todos`, `GET/PUT/DELETE /api/v1/todos/{id}` — API qua prefix `/api/v1`
+
+### Config (`.env`)
+
+Tạo file `.env` (tham khảo `.env.example`):
+
+```
+APP_NAME=Hello To-Do API
+DEBUG=false
+API_V1_PREFIX=/api/v1
+```
+
+### Tiêu chí đạt
+
+- Không viết logic DB trong router
+- Có file `main.py` sạch (chỉ tạo app và include router)
+
+---
+
+## Cấp 4 — Database (PostgreSQL) + ORM + Migration
+
+Mục tiêu: lưu dữ liệu thật.
+
+### Yêu cầu
+
+- **SQLAlchemy** (ORM), bảng **todos**: `id`, `title`, `description`, `is_done`, `created_at`, `updated_at`
+- **Alembic** để migration
+- **PostgreSQL** chạy bằng **Docker Compose**, cổng **5433**
+- **Endpoints thêm:**
+  - `PATCH /api/v1/todos/{id}` — cập nhật một phần (vd: chỉ `is_done`)
+  - `POST /api/v1/todos/{id}/complete` — đánh dấu hoàn thành
+
+### Bảng todos (PostgreSQL)
+
+| Cột | Kiểu | Ghi chú |
+|-----|------|--------|
+| id | integer | PK, auto |
+| title | varchar(100) | not null |
+| description | text | nullable |
+| is_done | boolean | default false |
+| created_at | timestamptz | server_default |
+| updated_at | timestamptz | server_default, onupdate |
+
+### Tiêu chí đạt
+
+- `created_at` / `updated_at` tự cập nhật (DB)
+- Pagination thực sự từ DB (limit/offset trong query)
+
+### Kết nối pgAdmin 4
+
+Dùng pgAdmin 4 (app trên máy hoặc Docker) kết nối tới PostgreSQL:
+
+| Ô | Giá trị |
+|---|--------|
+| Host | `localhost` |
+| Port | **5433** |
+| Database | `tododb` |
+| Username | `todo` |
+| Password | `todo` |
+
+Sau khi kết nối, mở **Databases** → **tododb** → **Schemas** → **public** → **Tables** → **todos**. Có thể chạy `SELECT * FROM todos;` trong Query Tool.
+
+![pgAdmin 4 - Bảng todos](docs/cap4-pgadmin.png)
+
+---
+
 ## Cấu trúc project
 
 ```
 FastAPI/
-├── main.py           # Ứng dụng FastAPI và các endpoint
-├── requirements.txt  # Dependencies
-├── test_cap1.py      # Script kiểm tra Cấp 1
-├── docs/             # Ảnh minh họa
+├── core/             # Config, database, deps
+│   ├── config.py
+│   ├── database.py   # Engine, SessionLocal, get_db
+│   └── deps.py
+├── models/          # SQLAlchemy models
+│   ├── base.py
+│   └── todo.py
+├── schemas/          # Pydantic models
+│   └── todo.py
+├── repositories/     # Truy cập DB (PostgreSQL)
+│   └── todo_repository.py
+├── services/
+│   └── todo_service.py
+├── routers/
+│   ├── root.py
+│   └── todo.py
+├── alembic/          # Migration
+│   ├── env.py
+│   └── versions/
+├── main.py
+├── docker-compose.yml   # PostgreSQL (5433), pgAdmin (5050)
+├── requirements.txt
+├── .env.example
+├── docs/
 └── README.md
 ```
 
@@ -71,14 +225,27 @@ FastAPI/
    pip install -r requirements.txt
    ```
 
-2. **Chạy server:**
+2. **Chạy PostgreSQL (Docker, cổng 5433):**
+
+   ```bash
+   docker-compose up -d postgres
+   ```
+
+3. **Chạy migration:**
+
+   ```bash
+   alembic upgrade head
+   ```
+
+4. **Chạy server:**
 
    ```bash
    uvicorn main:app --reload --host 127.0.0.1 --port 8000
    ```
 
-3. **Kiểm tra:**
+5. **Kiểm tra:**
    - Trang chủ: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
    - Health: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-   - Tài liệu API (Swagger UI): [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-   - Chạy test Cấp 1: `python3 test_cap1.py`
+   - API Todo: [http://127.0.0.1:8000/api/v1/todos](http://127.0.0.1:8000/api/v1/todos)
+   - Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+   - pgAdmin (Docker, nếu dùng): [http://127.0.0.1:5050](http://127.0.0.1:5050) — đăng nhập `admin@admin.com` / `admin`
