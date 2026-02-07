@@ -15,6 +15,8 @@ Mục tiêu: tạo API tối thiểu chạy được.
 
 - Chạy uvicorn và gọi được 2 endpoint.
 
+![Swagger UI - CRUD ToDo](docs/cap0-swagger-ui.png)
+
 ---
 
 ## Cấp 1 — CRUD cơ bản (dữ liệu trong RAM)
